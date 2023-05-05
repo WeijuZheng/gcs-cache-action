@@ -28,6 +28,8 @@ async function getTarCompressionMethod(): Promise<CompressionMethod> {
     })
     .catch(() => ['', null]);
 
+  console.log(zstdOutput, zstdVersion);
+
   if (!zstdOutput?.toLowerCase().includes('zstd command line interface')) {
     return CompressionMethod.GZIP;
   } else if (
