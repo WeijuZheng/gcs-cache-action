@@ -11,7 +11,7 @@ export enum CompressionMethod {
   ZSTD = 'zstd',
 }
 
-async function getTarCompressionMethod(): Promise<CompressionMethod> {
+export async function getTarCompressionMethod(): Promise<CompressionMethod> {
   if (process.platform === 'win32') {
     return CompressionMethod.GZIP;
   }
