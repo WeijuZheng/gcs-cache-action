@@ -6,7 +6,7 @@ import { withFile as withTemporaryFile } from 'tmp-promise';
 import { ObjectMetadata } from './gcs-utils';
 import { getInputs } from './inputs';
 import { CacheHitKindState, saveState } from './state';
-import { extractTar } from './tar-utils';
+import { extractTar, getTarCompressionMethod } from './tar-utils';
 
 async function getBestMatch(
   bucket: Bucket,
@@ -80,62 +80,7 @@ async function getBestMatch(
 }
 
 async function main() {
-  const inputs = getInputs();
-  const bucket = new Storage().bucket(inputs.bucket);
-
-  const folderPrefix = `${github.context.repo.owner}/${github.context.repo.repo}`;
-  const exactFileName = `${folderPrefix}/${inputs.key}.tar`;
-
-  const [bestMatch, bestMatchKind] = await core.group(
-    '🔍 Searching the best cache archive available',
-    () => getBestMatch(bucket, inputs.key, inputs.restoreKeys),
-  );
-
-  core.debug(`Best match kind: ${bestMatchKind}.`);
-
-  if (!bestMatch) {
-    saveState({
-      bucket: inputs.bucket,
-      path: inputs.path,
-      cacheHitKind: 'none',
-      targetFileName: exactFileName,
-    });
-    core.setOutput('cache-hit', 'false');
-    console.log('😢 No cache candidate found.');
-    return;
-  }
-
-  core.debug(`Best match name: ${bestMatch.name}.`);
-
-  const bestMatchMetadata = await bestMatch
-    .getMetadata()
-    .then(([metadata]) => metadata as ObjectMetadata)
-    .catch((err) => {
-      core.error('Failed to read object metadatas');
-      throw err;
-    });
-
-  core.debug(`Best match metadata: ${JSON.stringify(bestMatchMetadata)}.`);
-
-  const compressionMethod =
-    bestMatchMetadata?.metadata?.['Cache-Action-Compression-Method'];
-
-  core.debug(`Best match compression method: ${compressionMethod}.`);
-
-  if (!bestMatchMetadata || !compressionMethod) {
-    saveState({
-      bucket: inputs.bucket,
-      path: inputs.path,
-      cacheHitKind: 'none',
-      targetFileName: exactFileName,
-    });
-
-    core.setOutput('cache-hit', 'false');
-    console.log('😢 No cache candidate found (missing metadata).');
-    return;
-  }
-
-  const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
+  const compressionMethod = await getTarCompressionMethod();
 
   return withTemporaryFile(async (tmpFile) => {
     await core
